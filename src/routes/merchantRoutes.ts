@@ -11,7 +11,7 @@ const generateMerchantKey = (prefix: string) => `${prefix}_${randomBytes(24).toS
 router.post('/create-merchant', createMerchantValidators, async (req: Request, res: Response) => {
     const validationErrors = validationResult(req);
     if (!validationErrors.isEmpty()) {
-        return res.status(400).send({
+        return res.status(400).json({
             data: null,
             error: validationErrors.array({ onlyFirstError: true }).map(err => err.msg)
         });
@@ -38,7 +38,7 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
 
     const { data, error } = await supabase.from('merchants').insert(merchantRecord).select().single();
     if (error) {
-        return res.status(500).send({
+        return res.status(500).json({
             data: null,
             error: error.message || 'Merchant registration failed. Kindly try again.'
         });
@@ -51,35 +51,64 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
     if (keysError) {
         const { error: deleteError } = await supabase.from('merchants').delete().eq('id', data.id);
         if (deleteError) {
-            return res.status(500).send({
+            return res.status(500).json({
                 data: null,
                 error: deleteError.message || 'Merchant deletion failed. Kindly contact support.'
             });
         }
 
-        return res.status(500).send({
+        return res.status(500).json({
             data: null,
             error: keysError.message || 'Merchant keys registration failed. Kindly try again.'
         });
     }
 
-    return res.status(201).send({
+    return res.status(201).json({
         data: 'Merchant created successfully!',
         error: null
     });
 });
 
 router.get('/merchants', async (_req: Request, res: Response) => {
-    const { data, error } = await supabase.from('merchants').select('*');
-    if (error) {
-        return res.status(500).send({
-            data:null,
-            error: error.message
+    const { pageLimit, offset, search } = _req.query;
+
+    //check if page limit and offset are positive nubers
+    if (Number(pageLimit) <= 0 || Number(offset) < 0) {
+        return res.status(400).json({
+            data: null,
+            error: 'Page limit and offset must be positive numbers.'
         });
     }
-    return res.status(200).send({
+
+    let supabaseQuery = supabase.from('merchants').select('*', { count: 'exact' });
+
+    if (typeof search === 'string' && search.trim().length > 0) {
+        supabaseQuery = supabaseQuery.ilike('first_name', `%${search.trim()}%`);
+    }
+
+
+    //check if page limit and offset are provided and if they are numbers so they are added to the payload
+    if (!isNaN(Number(pageLimit))) {
+        const start = Number(offset) ?? 0;
+        const end = start + Number(pageLimit) - 1;
+        supabaseQuery = supabaseQuery.range(start, end);
+    }
+
+    //fetch the data from the db and also count
+    const { data, error, count } = await supabaseQuery
+
+//throw an error if there is one during fetch
+    if (error) {
+        return res.status(500).json({
+            data:null,
+            error: error.message,
+            count: null
+        });
+    }
+    return res.status(200).json({
         data,
-        error: null
+        error: null,
+        count
     });
 });
 
