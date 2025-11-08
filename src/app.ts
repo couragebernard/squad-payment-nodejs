@@ -37,15 +37,15 @@ app.use(merchantRoutes);
 
 app.use(function (_req: Request, res: Response) {
         res.status(404).json({
-            success: false,
-            message: 'Route not found',
+            data: null,
+            error: 'Route not found',
         });
 });
 
 app.use(function(err: Error, _req: Request, res: Response, _next: NextFunction){
     console.error(err);
     res.status(500).json({
-        success: false,
-        message: 'Internal server error',
+        data: null,
+        error: 'Internal server error',
     });
   });
