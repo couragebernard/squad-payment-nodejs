@@ -8,6 +8,8 @@ const router = express.Router();
 
 const generateMerchantKey = (prefix: string) => `${prefix}_${randomBytes(24).toString('hex')}`;
 
+
+//endpoint to register a new merchant.
 router.post('/create-merchant', createMerchantValidators, async (req: Request, res: Response) => {
     const validationErrors = validationResult(req);
     if (!validationErrors.isEmpty()) {
@@ -69,6 +71,8 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
     });
 });
 
+
+//endpoint to get all merchants.
 router.get('/merchants', async (_req: Request, res: Response) => {
     const { pageLimit, offset, search } = _req.query;
 
@@ -101,7 +105,7 @@ router.get('/merchants', async (_req: Request, res: Response) => {
     if (error) {
         return res.status(500).json({
             data:null,
-            error: error.message,
+            error: error.message || 'Failed to retrieve merchants. Kindly try again.',
             count: null
         });
     }
@@ -111,5 +115,34 @@ router.get('/merchants', async (_req: Request, res: Response) => {
         count
     });
 });
+
+
+//endpoint to get a single merchant by their id.
+router.get('/merchants/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { data, error } = await supabase.from('merchants').select('*').eq('id', id).single();
+    if (error) {
+
+        if (error.code === '22P02') {
+            return res.status(404).json({
+                data: null,
+                error: 'Merchant not found. Kindly check the id and try again.'
+            });
+        }
+
+        return res.status(500).json({
+            data: null,
+            error: error.message || 'Merchant not found'
+        });
+    }
+    return res.status(200).json({
+        data,
+        error: null
+    });
+});
+
+
+
+
 
 module.exports = router;
