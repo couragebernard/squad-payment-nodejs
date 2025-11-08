@@ -6,6 +6,7 @@ const app = express();
 const cors = require('cors');
 require('dotenv').config();
 const transactionRoutes = require('./routes/transactionRoutes');
+const merchantRoutes = require('./routes/merchantRoutes');
 
 
 
@@ -30,7 +31,7 @@ app.listen(process.env.PORT || 3000, () => {
 
 app.get('/', (_req: Request, res: Response) => res.send('Hello World'));
 app.use(transactionRoutes);
-
+app.use(merchantRoutes);
 
  
 
