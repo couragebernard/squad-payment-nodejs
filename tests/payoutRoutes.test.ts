@@ -20,78 +20,70 @@ const supabaseFromMock = supabase.from as jest.Mock;
 
 const createQueryBuilder = (result: { data: unknown; error: unknown; count: number | null }) => {
   const builder = {
+    eq: jest.fn().mockReturnThis(),
     range: jest.fn().mockReturnThis(),
     then: (resolve: (value: typeof result) => unknown) => resolve(result)
   };
   return builder;
 };
 
-describe('Transaction Routes', () => {
+describe('Payout Routes', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('GET /transactions', () => {
-    test('returns 400 when pageLimit invalid', async () => {
-      const response = await request
-        .get('/transactions?pageLimit=0&offset=0')
-        .expect(httpStatus.BAD_REQUEST);
-
-      expect(response.body.error).toBe('Page limit and offset must be positive numbers.');
-      expect(supabaseFromMock).not.toHaveBeenCalled();
-    });
-
-    test('returns 500 when supabase returns an error', async () => {
+  describe('GET /payouts', () => {
+    test('returns 500 when Supabase fails', async () => {
       const selectMock = jest.fn().mockReturnValue(
         createQueryBuilder({
           data: null,
-          error: { message: 'fetch failed' },
+          error: { message: 'payout fetch failed' },
           count: null
         })
       );
 
       supabaseFromMock.mockImplementation((table: string) => {
-        if (table === 'transactions') {
+        if (table === 'payouts') {
           return { select: selectMock };
         }
         throw new Error(`Unexpected table ${table}`);
       });
 
       const response = await request
-        .get('/transactions?pageLimit=10&offset=0')
+        .get('/payouts?pageLimit=10&offset=0')
         .expect(httpStatus.INTERNAL_SERVER_ERROR);
 
-      expect(response.body.error).toBe('fetch failed');
+      expect(response.body.error).toBe('Failed to retrieve payouts');
       expect(selectMock).toHaveBeenCalledTimes(1);
     });
 
-    test('returns transactions data when query succeeds', async () => {
-      const transactions = [
-        { id: 'tx_1', amount: 5000, currency: 'NGN' },
-        { id: 'tx_2', amount: 10000, currency: 'USD' }
+    test('returns payouts data when query succeeds', async () => {
+      const payouts = [
+        { id: 'po_1', amount: 2000, status: 'pending' },
+        { id: 'po_2', amount: 5000, status: 'completed' }
       ];
 
       const selectMock = jest.fn().mockReturnValue(
         createQueryBuilder({
-          data: transactions,
+          data: payouts,
           error: null,
-          count: transactions.length
+          count: payouts.length
         })
       );
 
       supabaseFromMock.mockImplementation((table: string) => {
-        if (table === 'transactions') {
+        if (table === 'payouts') {
           return { select: selectMock };
         }
         throw new Error(`Unexpected table ${table}`);
       });
 
       const response = await request
-        .get('/transactions?pageLimit=5&offset=0')
+        .get('/payouts?pageLimit=5&offset=0')
         .expect(httpStatus.OK);
 
-      expect(response.body.data).toEqual(transactions);
-      expect(response.body.count).toBe(transactions.length);
+      expect(response.body.data).toEqual(payouts);
+      expect(response.body.count).toBe(payouts.length);
       expect(response.body.error).toBeNull();
       expect(selectMock).toHaveBeenCalledTimes(1);
     });
