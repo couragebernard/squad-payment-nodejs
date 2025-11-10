@@ -41,7 +41,7 @@ app.use(function (_req: Request, res: Response) {
         });
 });
 
-app.use(function(err: Error, _req: Request, res: Response, _next: NextFunction){
+app.use(function( _req: Request, res: Response, _next: NextFunction){
   
     res.status(500).json({
         data: null,

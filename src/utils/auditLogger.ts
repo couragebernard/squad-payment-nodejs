@@ -1,4 +1,4 @@
-import { PostgrestError } from '@supabase/supabase-js';
+
 import { supabase } from '../supabase/supabaseClient';
 
 export type AuditStatus = 'success' | 'failure' | 'info';
