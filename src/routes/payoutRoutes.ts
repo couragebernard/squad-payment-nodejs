@@ -256,9 +256,18 @@ router.post(
         });
     }
 
+    if (Number(merchantBalance.available_balance).toFixed(2) !== Number(payload.amount).toFixed(2)) {
+        return res
+          .status(400)
+          .json({
+            data: null,
+            error: "Payout should be the same as available balance.",
+          });
+      }
+
     //In actualy production, we will make a request to verify the account number and bank name
 
-    //create hthe payout
+    //create the payout
     const {
       data,
       error,
