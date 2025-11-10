@@ -5,7 +5,7 @@ import { supabase } from '../supabase/supabaseClient';
 import { CreateTransactionType, MerchantBalanceType, TransactionType } from '../types/gen';
 import { logAuditEvent } from '../utils/auditLogger';
 import {  generateUniqueTransactionReference } from '../utils/utils';
-import { createTransactionValidators } from '../utils/validators/transactionValidators';
+import { cardSettlementValidators, createTransactionValidators } from '../utils/validators/transactionValidators';
 import { PostgrestError } from '@supabase/supabase-js';
 const router = express.Router();
 
@@ -440,18 +440,25 @@ router.post(
 
 
 //webhook to update the merchant and transaction details once a card settlement has occured
-router.patch('/card-settlement', authenticateMerchant, async (req: MerchantAuthRequest, res: Response) => {
-    const { amount, id, currency } = req.query;
-    if (!amount || !id || !currency) {
+router.patch('/card-settlement', authenticateMerchant, cardSettlementValidators, async (req: MerchantAuthRequest, res: Response) => {
+
+    const validationErrors = validationResult(req);
+    if (!validationErrors.isEmpty()) {
         return res.status(400).json({
             data: null,
-            error: 'Missing required fields.'
+            error: validationErrors.array({ onlyFirstError: true }).map(err => err.msg)
         });
     }
+
+    const payload = matchedData(req, {
+        locations: ['query'],
+        includeOptionals: true
+    }) as { amount: number, id: string, currency: string };
+
     const { data: transactionData, error: transactionDataError }: { data: TransactionType | null, error: PostgrestError | null } = await supabase
         .from('transactions')
         .select('*')
-        .eq('id', id)
+        .eq('id', payload.id)
         .single();
     if (transactionDataError || !transactionData) {
      
@@ -466,13 +473,13 @@ router.patch('/card-settlement', authenticateMerchant, async (req: MerchantAuthR
             error: 'Transaction already settled.'
         });
     }
-    if (transactionData.amount !== Number(amount)) {
+    if (transactionData.amount !== Number(payload.amount)) {
         return res.status(400).json({
             data: null,
             error: 'Transaction amount does not match.'
         });
     }
-    if (transactionData.currency !== currency) {
+    if (transactionData.currency !== payload.currency) {
         return res.status(400).json({
             data: null,
             error: 'Transaction currency does not match.'

@@ -165,3 +165,30 @@ export const createTransactionValidators = [
         .trim()
 ];
 
+
+export const cardSettlementValidators = [
+    query('amount')
+        .exists({ checkFalsy: true })
+        .withMessage('Amount is required.')
+        .bail()
+        .isFloat({ gt: 0 })
+        .withMessage('Amount must be greater than zero.')
+        .bail()
+        .toFloat(),
+    query('currency')
+        .exists({ checkFalsy: true })
+        .withMessage('Please select a valid currency.')
+        .bail()
+        .isIn(allowedCurrencies)
+        .withMessage(`Invalid currency selected!`)
+        .bail()
+        .customSanitizer((value: string) => value.toUpperCase()),
+    query('id')
+        .exists({ checkFalsy: true })
+        .withMessage('Transaction ID is required.')
+        .bail()
+        .isString()
+        .withMessage('Transaction ID must be a string.')
+        .bail()
+        .trim(),
+]
