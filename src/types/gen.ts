@@ -29,81 +29,95 @@ export type CreateTransactionType = {
 
 export type MerchantKeyType = {
  
-      active: boolean
-      created_at: string
-      id: string
-      merchant_id: string
-      public_key: string
-      secret_key: string
+      active: boolean;
+      created_at: string;
+      id: string;
+      merchant_id: string;
+      public_key: string;
+      secret_key: string;
   
   }
 
 
 
   export type MerchantType = {
-    address: string
-    available_balance: number
-    created_at: string
-    email: string
-    first_name: string
-    id: string
-    last_name: string
-    middle_name: string
-    pending_settlement_balance: number
-    phone_number: string
-    preferred_currency: "NGN" | "USD"
-    status: "active" | "inactive" | "suspended"
+      address: string;
+    available_balance: number;
+    created_at: string;
+    email: string;
+    first_name: string;
+    id: string;
+    last_name: string;
+    middle_name: string;
+    pending_settlement_balance: number;
+    phone_number: string;
+    preferred_currency: "NGN" | "USD";
+    status: "active" | "inactive" | "suspended";
   }
 
 
 
   export type PaymentMethodType = {
-    created_at: string
-    fee_rate: number
-    fee_type: string
-    available:boolean
-    allowed_currencies: string[]
-    id: string
-    name: string
+    created_at: string;
+    fee_rate: number;
+    fee_type: string;
+    available:boolean;
+    allowed_currencies: "NGN" | "USD"[];
+    id: string;
+    name: string;
   }
 
 
   export type TransactionType = {
-    amount: number
-    card_expiration_date: string | null
-      card_holder_name: string | null
-      card_last_four_digits: string | null
-      card_verification_code: string | null
-      created_at: string
-      currency: "NGN" | "USD"
-      customer_email: string | null
-      customer_name: string | null
-      customer_phone_number: string | null
-      fee_amount: number | null
-      fee_rate: number | null
-      fee_type: "percentage" | "flat" | null
-      id: string
-      merchant_id: string
-      total_amount: number
-      tx_desc: string | null
-      tx_ref: string | null
-      tx_type: "card" | "virtual_account"
-      virtual_account_id: string | null
-      status: "pending" | "success" | "failed"
+    amount: number; 
+    card_expiration_date: string | null;
+      card_holder_name: string | null;
+      card_last_four_digits: string | null;
+      card_verification_code: string | null;
+      created_at: string;
+      currency: "NGN" | "USD";
+      customer_email: string | null;
+      customer_name: string | null;
+        customer_phone_number: string | null;
+      fee_amount: number | null;
+      fee_rate: number | null;
+      fee_type: "percentage" | "flat" | null;
+      id: string;
+      merchant_id: string;
+      total_amount: number;
+      tx_desc: string | null;
+      tx_ref: string | null;
+      tx_type: "card" | "virtual_account";
+      virtual_account_id: string | null;
+      status: "pending" | "success" | "failed";
     }
     
 
   export type VirtualAccountType = {
-    account_name: string
-    account_number: string
-    bank_code: string
-    bank_name: string
-      created_at?: string
-    id: string
-    merchant_id: string
+    account_name: string;
+    account_number: string;
+    bank_code: string;
+    bank_name: string;
+      created_at?: string;
+    id: string;
+    merchant_id: string;
   }
    
   export type MerchantBalanceType = {
-    available_balance: number
-    pending_settlement_balance: number
+    available_balance: number;
+    pending_settlement_balance: number;
+  }
+
+  export type PayoutType = {
+    id :string;
+    created_at :string;
+    px_ref :string;
+    merchant_id :string;
+    amount :number;
+    currency :"NGN" | "USD";
+    account_name :string;
+    account_number :string;
+    bank_name :string;
+    bank_code :string;
+    status :"pending" | "success" | "failed";
   }

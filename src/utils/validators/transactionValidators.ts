@@ -191,4 +191,9 @@ export const cardSettlementValidators = [
         .withMessage('Transaction ID must be a string.')
         .bail()
         .trim(),
+    query('card_number')
+        .isCreditCard()
+        .withMessage('Card number must be a valid credit card number.')
+        .bail()
+        .customSanitizer(sanitizeCardNumber),
 ]

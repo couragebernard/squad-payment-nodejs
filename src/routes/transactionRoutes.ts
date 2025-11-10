@@ -11,7 +11,52 @@ const router = express.Router();
 
 const roundToTwo = (value: number) => Math.round(value * 100) / 100;
 
-router.get('/transactions', async (req: Request, res: Response) => {
+
+//end point to get all transactions (habari staff) and also filter by merchant
+router.get('/transactions', async (req: Request, res: Response): Promise<Response<{ data: TransactionType[] | null, error: string | null, count: number | null }>> => {
+    const {pageLimit, offset, merchant} = req.query;
+
+     //check if page limit and offset are positive nubers
+     if (Number(pageLimit) <= 0 || Number(offset) < 0) {
+        return res.status(400).json({
+            data: null,
+            error: 'Page limit and offset must be positive numbers.'
+        });
+    }
+    
+    let supabaseQuery = supabase.from('transactions').select('*', { count: 'exact' });
+
+    if (merchant) {
+        supabaseQuery = supabaseQuery.eq('merchant_id', merchant);
+    }
+
+    //check if page limit and offset are provided and if they are numbers so they are added to the payload
+    if (!isNaN(Number(pageLimit))) {
+        const start = Number(offset) ?? 0;
+        const end = start + Number(pageLimit) - 1;
+        supabaseQuery = supabaseQuery.range(start, end);
+    }
+
+    //fetch the data from the db and also count
+    const { data, error, count } = await supabaseQuery
+    if (error) {
+        return res.status(500).json({
+            data:null,
+            error: error.message || 'Failed to fetch transactions',
+            count: null
+        });
+    }
+
+    return res.status(200).json({
+        data,
+        error: null,
+        count: count || 0
+    });
+});
+
+
+//end point for a merchant to get their transactions
+router.get('/my-transactions', authenticateMerchant, async (req: MerchantAuthRequest, res: Response): Promise<Response<{ data: TransactionType[] | null, error: string | null, count: number | null }>> => {
     const {pageLimit, offset} = req.query;
 
      //check if page limit and offset are positive nubers
@@ -22,7 +67,7 @@ router.get('/transactions', async (req: Request, res: Response) => {
         });
     }
 
-    let supabaseQuery = supabase.from('transactions').select('*', { count: 'exact' });
+    let supabaseQuery = supabase.from('transactions').select('*', { count: 'exact' }).eq('merchant_id', req.merchantKeyRecord?.merchant_id);
 
   
 
@@ -34,7 +79,7 @@ router.get('/transactions', async (req: Request, res: Response) => {
     }
 
     //fetch the data from the db and also count
-    const { data, error, count } = await supabaseQuery
+    const { data, error, count }: { data: TransactionType[] | null, error: PostgrestError | null, count: number | null } = await supabaseQuery
     if (error) {
         return res.status(500).json({
             data:null,
@@ -453,7 +498,7 @@ router.patch('/card-settlement', authenticateMerchant, cardSettlementValidators,
     const payload = matchedData(req, {
         locations: ['query'],
         includeOptionals: true
-    }) as { amount: number, id: string, currency: string };
+    }) as { amount: number, id: string, currency: string , card_number: string };
 
     const { data: transactionData, error: transactionDataError }: { data: TransactionType | null, error: PostgrestError | null } = await supabase
         .from('transactions')
@@ -489,6 +534,12 @@ router.patch('/card-settlement', authenticateMerchant, cardSettlementValidators,
         return res.status(400).json({
             data: null,
             error: 'Transaction is not a card transaction.'
+        });
+    }
+    if (transactionData.card_last_four_digits !== payload.card_number.slice(-4)) {
+        return res.status(400).json({
+            data: null,
+            error: 'Card number does not match.'
         });
     }
     const { data: merchantBalances, error: merchantBalanceError }: { data: MerchantBalanceType | null, error: PostgrestError | null } = await supabase

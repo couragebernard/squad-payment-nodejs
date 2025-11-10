@@ -3,7 +3,7 @@ import { supabase } from '../supabase/supabaseClient';
 
 export type AuditStatus = 'success' | 'failure' | 'info';
 
-export interface AuditLogEntry {
+export type AuditLogEntryType = {
     event_type: string;
     db_table: string;
     table_id?: string | number | null;
@@ -16,11 +16,8 @@ export interface AuditLogEntry {
     trace_id?: string | null;   
 }
 
-type AuditLogResponse = {
-    error: PostgrestError | null;
-};
 
-export const logAuditEvent = async (entry: AuditLogEntry): Promise<void> => {
+export const logAuditEvent = async (entry: AuditLogEntryType): Promise<void> => {
     const payload = {
         event_type: entry.event_type,
         db_table: entry.db_table,
@@ -34,10 +31,9 @@ export const logAuditEvent = async (entry: AuditLogEntry): Promise<void> => {
         trace_id: entry.trace_id ?? null
     };
 
-    const { error }: AuditLogResponse = await supabase.from('audit_log').insert(payload);
+    const { error }: {error: PostgrestError | null} = await supabase.from('audit_log').insert(payload);
 
     if (error) {
-        // Avoid throwing to prevent masking the original failure. Log for observability.
         console.error('Failed to write audit log entry', { error, payload });
     }
 };
