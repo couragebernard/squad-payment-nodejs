@@ -1,16 +1,17 @@
 import express, { Request, Response } from 'express';
-import { randomBytes } from 'crypto';
+import { createHash } from 'crypto';
 import { matchedData, validationResult } from 'express-validator';
 import { supabase } from '../supabase/supabaseClient';
 import { createMerchantValidators } from '../utils/validators/merchantValidators';
 import { CreateMerchantType } from '../types/gen';
+import { generateAccountNumber, generateMerchantKey } from '../utils/utils';
 const router = express.Router();
-
-const generateMerchantKey = (prefix: string) => `${prefix}_${randomBytes(24).toString('hex')}`;
 
 
 //endpoint to register a new merchant.
 router.post('/create-merchant', createMerchantValidators, async (req: Request, res: Response) => {
+
+    //vlidate our request payload
     const validationErrors = validationResult(req);
     if (!validationErrors.isEmpty()) {
         return res.status(400).json({
@@ -48,8 +49,13 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
 
     const public_key = generateMerchantKey('sqpk');
     const secret_key = generateMerchantKey('sqsk');
+    const hashedSecretKey = createHash('sha256').update(secret_key).digest('hex');
 
-    const { error: keysError } = await supabase.from('merchant_keys').insert({ merchant_id: data.id, public_key, secret_key });
+    const { error: keysError } = await supabase.from('merchant_keys').insert({
+        merchant_id: data.id,
+        public_key,
+        secret_key: hashedSecretKey
+    });
     if (keysError) {
         const { error: deleteError } = await supabase.from('merchants').delete().eq('id', data.id);
         if (deleteError) {
@@ -65,16 +71,48 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
         });
     }
 
+    //create a virtual account for the merchant
+    const accountNumber = generateAccountNumber();
+    const { error: virtualAccountError } = await supabase.from('virtual_accounts').insert({
+        merchant_id: data.id,
+        account_number: accountNumber,
+        account_name: `Habaripay | ${data.first_name} ${data.middle_name ?? ''} ${data.last_name}`,
+        bank_code: '058',
+        bank_name: 'GTB'
+    });
+    if (virtualAccountError) {
+        const { error: deleteError } = await supabase.from('merchants').delete().eq('id', data.id);
+        if (deleteError) {
+            return res.status(500).json({
+                data: null,
+                error: deleteError.message || 'Merchant deletion failed. Kindly contact support.'
+            });
+        }
+        return res.status(500).json({
+            data: null,
+            error: virtualAccountError.message || 'Virtual account creation failed. Kindly try again.'
+        });
+    }
+
+
+    //sending the keys so the merchant can view and use to make requests to the server. The merchant can only view the keys once after creation
     return res.status(201).json({
-        data: 'Merchant created successfully!',
+        data: {
+            message: 'Merchant created successfully!',
+            merchant: data,
+            keys: {
+                public_key,
+                secret_key
+            }
+        },
         error: null
     });
 });
 
 
 //endpoint to get all merchants.
-router.get('/merchants', async (_req: Request, res: Response) => {
-    const { pageLimit, offset, search } = _req.query;
+router.get('/merchants', async (req: Request, res: Response) => {
+    const { pageLimit, offset, search } = req.query;
 
     //check if page limit and offset are positive nubers
     if (Number(pageLimit) <= 0 || Number(offset) < 0) {
@@ -141,7 +179,42 @@ router.get('/merchants/:id', async (req: Request, res: Response) => {
     });
 });
 
+//endpoint to get a merchants public key
+// router.get('/merchants/:id/keys', authenticateMerchant, async (req: MerchantAuthRequest, res: Response) => {
+//     const { id } = req.params;
 
+
+//     //check if the current logged in merchant id is the same as the id in the request params
+//     if (req.merchantKeyRecord?.merchant_id && String(req.merchantKeyRecord.merchant_id) !== id) {
+//         return res.status(403).json({
+//             data: null,
+//             error: 'You are not authorized to view keys for this merchant.'
+//         });
+//     }
+
+//     //fetch the merchant keys from the db
+//     const { data, error } = await supabase.from('merchant_keys').select('public_key').eq('merchant_id', id).single();
+//     if (error) {
+//         //throw an error if the merchat keys are not foud
+//         if (error.code === '22P02') {
+//             return res.status(404).json({
+//                 data: null,
+//                 error: 'Merchant keys not found. Kindly check the id and try again.'
+//             });
+//         }
+
+//         return res.status(500).json({
+//             data: null,
+//             error: error.message || 'Failed to retrieve merchant keys. Kindly try again.'
+//         });
+//     }
+//     return res.status(200).json({
+//         data: {
+//             public_key: data.public_key
+//         },
+//         error: null
+//     });
+// });
 
 
 
