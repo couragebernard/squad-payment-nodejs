@@ -88,4 +88,18 @@ router.get('/my-payouts', authenticateMerchant, async (req: MerchantAuthRequest,
     });
 });
 
+
+//end point to get a single payout by id
+router.get('/payouts/:id', async (req: Request, res: Response): Promise<Response<{ data: PayoutType | null, error: string | null }>> => {
+    const { id } = req.params;
+    const { data, error }: { data: PayoutType | null, error: PostgrestError | null } = await supabase.from('payouts').select('*').eq('id', id).single();
+    if (error) {
+        return res.status(500).json({ data: null, error: 'Failed to retrieve payout' });
+    }
+    return res.status(200).json({ data: data as PayoutType, error: null });
+});
+
+
+
+
 module.exports = router;    
