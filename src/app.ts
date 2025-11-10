@@ -26,9 +26,6 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 app.use(limiter);
-app.listen(process.env.PORT || 3000, () => {
-    console.info(`Listening to port ${process.env.PORT || 3000}`);
-});
 
 app.get('/', (_req: Request, res: Response) => res.send('Hello World'));
 app.use(transactionRoutes);
@@ -51,3 +48,11 @@ app.use(function(err: Error, _req: Request, res: Response, _next: NextFunction){
         error: 'Internal server error',
     });
   });
+
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(process.env.PORT || 3000, () => {
+        console.info(`Listening to port ${process.env.PORT || 3000}`);
+    });
+}
+
+module.exports = app;
