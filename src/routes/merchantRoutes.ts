@@ -253,7 +253,7 @@ router.get('/merchants/:id/balance', async (req: Request, res: Response) => {
 
 
 //endpoint for merchant to get their balance
-router.get('/me/balance', authenticateMerchant, async (req: MerchantAuthRequest, res: Response) => {
+router.get('/balance', authenticateMerchant, async (req: MerchantAuthRequest, res: Response) => {
     const merchantId = req.merchantKeyRecord?.merchant_id;
     if (!merchantId) {
         return res.status(401).json({

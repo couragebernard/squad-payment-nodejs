@@ -53,6 +53,7 @@ export const authenticateMerchant = async (req: MerchantAuthRequest, res: Respon
 
     const hashedIncomingSecret = createHash('sha256').update(secretKey).digest('hex');
     if (hashedIncomingSecret !== keyRecord.secret_key) {
+        console.error('Invalid merchant credentials.', hashedIncomingSecret, keyRecord.secret_key);
         return res.status(401).json({
             data: null,
             error: 'Invalid merchant credentials.'

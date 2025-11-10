@@ -15,6 +15,7 @@ import { generateUniqueTransactionReference } from "../utils/utils";
 import {
   cardSettlementValidators,
   createTransactionValidators,
+  initializePaymentValidators,
 } from "../utils/validators/transactionValidators";
 import { PostgrestError } from "@supabase/supabase-js";
 const router = express.Router();
@@ -167,9 +168,10 @@ router.get("/transactions/:id", async (req: Request, res: Response) => {
 });
 
 //endpoint for the customer/user to initialize a payment url
-router.get(
+router.post(
   "/initialize-payment-url",
   authenticateMerchant,
+  initializePaymentValidators,
   async (req: MerchantAuthRequest, res: Response) => {
     const validationErrors = validationResult(req);
     if (!validationErrors.isEmpty()) {
@@ -182,10 +184,11 @@ router.get(
     }
 
     const payload = matchedData(req, {
-      locations: ["body"],
+      locations: ["query"],
       includeOptionals: true,
     }) as { amount: number; currency: string };
 
+    console.log(payload)
     if (Number(payload.amount) <= 0) {
       return res.status(400).json({
         data: null,

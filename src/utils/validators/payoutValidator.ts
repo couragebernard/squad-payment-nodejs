@@ -1,11 +1,11 @@
-import { body, query } from 'express-validator';
+import { body } from 'express-validator';
 
 const allowedCurrencies = ['NGN', 'USD'];
 
 
 
 export const requestPayoutValidators = [
-    query('amount')
+    body('amount')
         .exists({ checkFalsy: true })
         .withMessage('Amount is required.')
         .bail()
@@ -13,7 +13,7 @@ export const requestPayoutValidators = [
         .withMessage('Amount must be greater than zero.')
         .bail()
         .toFloat(),
-    query('currency')
+    body('currency')
         .exists({ checkFalsy: true })
         .withMessage('Please select a valid currency.')
         .bail()
