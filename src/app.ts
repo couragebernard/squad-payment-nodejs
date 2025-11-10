@@ -8,7 +8,7 @@ require('dotenv').config();
 const transactionRoutes = require('./routes/transactionRoutes');
 const merchantRoutes = require('./routes/merchantRoutes');
 const payoutRoutes = require('./routes/payoutRoutes');
-
+const limiter = require('./middleware/rateLimiter');
 
 app.use(cors({
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
@@ -24,7 +24,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use(cookieParser());
-
+app.use(limiter);
 app.listen(process.env.PORT || 3000, () => {
     console.info(`Listening to port ${process.env.PORT || 3000}`);
 });

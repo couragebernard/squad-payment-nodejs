@@ -39,17 +39,14 @@ export type MerchantKeyType = {
   }
 
 
-
   export type MerchantType = {
       address: string;
-    available_balance: number;
     created_at: string;
     email: string;
     first_name: string;
     id: string;
     last_name: string;
     middle_name: string;
-    pending_settlement_balance: number;
     phone_number: string;
     preferred_currency: "NGN" | "USD";
     status: "active" | "inactive" | "suspended";
@@ -104,8 +101,11 @@ export type MerchantKeyType = {
   }
    
   export type MerchantBalanceType = {
+    merchant_id:string;
+    currency:"NGN" | "USD";
     available_balance: number;
     pending_settlement_balance: number;
+    created_at:string;
   }
 
   export type PayoutType = {

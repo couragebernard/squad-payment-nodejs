@@ -33,8 +33,6 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
         email: merchantPayload.email,
         phone_number: merchantPayload.phone_number,
         address: merchantPayload.address ?? null,
-        available_balance: 0,
-        pending_settlement_balance: 0,
         preferred_currency: 'NGN'
     };
 
@@ -94,6 +92,23 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
         });
     }
 
+
+    //create a usd and naira balance for the merchant
+    const currencies = ['NGN', 'USD'];
+    for (const currency of currencies) {
+        const { error: merchantBalanceError } = await supabase.from('merchant_balance').insert({
+            merchant_id: data.id,
+            currency: currency,
+            available_balance: 0,
+            pending_settlement_balance: 0
+        });
+        if (merchantBalanceError) {
+            return res.status(500).json({
+                data: null,
+                error: merchantBalanceError.message || 'Merchant balance creation failed. Kindly try again.'
+            });
+        }
+    }
 
     //sending the keys so the merchant can view and use to make requests to the server. The merchant can only view the keys once after creation
     return res.status(201).json({

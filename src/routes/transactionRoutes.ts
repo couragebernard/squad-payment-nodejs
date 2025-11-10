@@ -122,14 +122,6 @@ router.get('/transactions/:id', async (req: Request, res: Response) => {
 
 //endpoint for the customer/user to initialize a payment url
 router.get("/initialize-payment-url", authenticateMerchant, async (req: MerchantAuthRequest, res: Response) => {
-    const { amount, currency } = req.query;
-
-    if (Number(amount) <= 0) {
-        return res.status(400).json({
-            data: null,
-            error: `Amount must be more than ${currency}${amount}.00`
-        }); 
-    }
 
    
     const validationErrors = validationResult(req);
@@ -139,6 +131,19 @@ router.get("/initialize-payment-url", authenticateMerchant, async (req: Merchant
             error: validationErrors.array({ onlyFirstError: true }).map(err => err.msg)
         });
     }
+
+    const payload = matchedData(req, {
+        locations: ['body'],
+        includeOptionals: true
+    }) as { amount: number, currency: string };
+
+    if (Number(payload.amount) <= 0) {
+        return res.status(400).json({
+            data: null,
+            error: `Amount must be more than ${payload.currency}${payload.amount}.00`
+        }); 
+    }
+
     const merchantId = req.merchantKeyRecord?.merchant_id;
     const { data:virtualAccData, error:virtualAccError } = await supabase.from('virtual_accounts').select('*').eq('merchant_id', merchantId).single();
     if (virtualAccError) {
@@ -155,7 +160,7 @@ router.get("/initialize-payment-url", authenticateMerchant, async (req: Merchant
             .from('payment_methods')
             .select('*')
             .eq('available', true)
-            .contains('allowed_currencies', [currency]);
+            .contains('allowed_currencies', [payload.currency]);
     if (paymentMethodsError) {
        
         return res.status(500).json({
@@ -173,8 +178,8 @@ router.get("/initialize-payment-url", authenticateMerchant, async (req: Merchant
     //create the transaction 
     const { data:transactionData, error:transactionError } = await supabase.from('transactions').insert({
         merchant_id: merchantId,
-        amount: amount,
-        currency: currency,
+        amount: payload.amount,
+        currency: payload.currency,
         tx_ref: transactionReference,
     }).select().single();
     if (transactionError) {
@@ -186,7 +191,7 @@ router.get("/initialize-payment-url", authenticateMerchant, async (req: Merchant
     }
     return res.status(200).json({
         data: {
-            payment_url: `${process.env.PAYMENT_DOMAIN}/pay?amount=${amount}&currency=${currency}&id=${transactionData.id}`,
+            payment_url: `${process.env.PAYMENT_DOMAIN}/pay?amount=${payload.amount}&currency=${payload.currency}&id=${transactionData.id}`,
             virtual_account:{
                 id: virtualAccData.id,
                 account_number: virtualAccData.account_number,
@@ -237,7 +242,7 @@ router.post(
         }) as CreateTransactionType;
 
 
-        const { data: transactionData, error: transactionDataError } = await supabase
+        const { data: transactionData, error: transactionDataError }: { data: TransactionType | null, error: PostgrestError | null } = await supabase
             .from('transactions')
             .select('*')
             .eq('id', id)
@@ -386,31 +391,16 @@ router.post(
             });
         }
 
-        const { data: merchantBalances, error: merchantBalanceError } = await supabase
-            .from('merchants')
+        const { data: merchantBalances, error: merchantBalanceError }: { data: MerchantBalanceType | null, error: PostgrestError | null } = await supabase
+            .from('merchant_balance')
             .select('available_balance, pending_settlement_balance')
-            .eq('id', merchantId)
+            .eq('merchant_id', merchantId)
+            .eq('currency', currency)
             .single();
 
         if (merchantBalanceError || !merchantBalances) {
             await supabase.from('transactions').delete().eq('id', transaction.id);
-            await logAuditEvent({
-                event_type: 'MERCHANT_BALANCE_FETCH_FAILED',
-                db_table: 'merchants',
-                table_id: merchantId,
-                status: 'failure',
-                attempted_changes: {
-                    available_balance_delta: txType === 'virtual_account' ? netAmount : 0,
-                    pending_settlement_delta: txType === 'card' ? netAmount : 0
-                },
-                error_message: merchantBalanceError?.message ?? 'Merchant balances not found.',
-                context: {
-                    route: 'POST /pay',
-                    transaction_id: transaction.id
-                },
-                user_type: 'merchant',
-                user_id: merchantId
-            });
+           
             return res.status(500).json({
                 data: null,
                 error: merchantBalanceError?.message || 'Failed to fetch merchant balances.'
@@ -427,16 +417,17 @@ router.post(
         };
 
         const { error: balanceUpdateError } = await supabase
-            .from('merchants')
+            .from('merchant_balance')
             .update(updatedBalances)
-            .eq('id', merchantId);
+            .eq('merchant_id', merchantId)
+            .eq('currency', currency);
 
         if (balanceUpdateError) {
             await supabase.from('transactions').delete().eq('id', id);
             await logAuditEvent({
                 event_type: 'MERCHANT_BALANCE_UPDATE_FAILED',
-                db_table: 'merchants',
-                table_id: merchantId,
+                db_table: 'merchant_balance',
+                table_id: `${merchantId}-${currency}`,
                 status: 'failure',
                 attempted_changes: updatedBalances,
                 error_message: balanceUpdateError.message,
@@ -543,9 +534,10 @@ router.patch('/card-settlement', authenticateMerchant, cardSettlementValidators,
         });
     }
     const { data: merchantBalances, error: merchantBalanceError }: { data: MerchantBalanceType | null, error: PostgrestError | null } = await supabase
-        .from('merchants')
+        .from('merchant_balance')
         .select('available_balance, pending_settlement_balance')
-        .eq('id', transactionData.merchant_id)
+        .eq('merchant_id', transactionData.merchant_id)
+        .eq('currency', transactionData.currency)
         .single();
     if (merchantBalanceError || !merchantBalances) {
        
@@ -557,18 +549,19 @@ router.patch('/card-settlement', authenticateMerchant, cardSettlementValidators,
 
        
         const { error: balanceUpdateError } = await supabase
-            .from('merchants')
+                .from('merchant_balance')
             .update({
                 available_balance: roundToTwo((merchantBalances.available_balance ?? 0) + transactionData.total_amount),
                 pending_settlement_balance: roundToTwo((merchantBalances.pending_settlement_balance ?? 0) - transactionData.total_amount)
             
             })
-            .eq('id', transactionData.merchant_id);
+            .eq('merchant_id', transactionData.merchant_id)
+            .eq('currency', transactionData.currency);
         if (balanceUpdateError) {
             await logAuditEvent({
                 event_type: 'MERCHANT_BALANCE_UPDATE_FAILED',
-                db_table: 'merchants',
-                table_id: transactionData.merchant_id,
+                db_table: 'merchant_balance',
+                table_id: `${transactionData.merchant_id}-${transactionData.currency}`,
                 status: 'failure',
                 attempted_changes: {
                     available_balance: roundToTwo((merchantBalances.available_balance ?? 0) + transactionData.total_amount),
@@ -577,7 +570,8 @@ router.patch('/card-settlement', authenticateMerchant, cardSettlementValidators,
                 error_message: balanceUpdateError.message,
                 context: {
                     route: 'PATCH /card-settlement',
-                    transaction_id: transactionData.id
+                    transaction_id: transactionData.id,
+                    currency: transactionData.currency
                 },
                 user_type: 'system'
             });

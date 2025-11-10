@@ -121,8 +121,8 @@ export const createTransactionValidators = [
         .exists({ checkFalsy: true })
         .withMessage('CVV is required for card transactions.')
         .bail()
-        .matches(/^[0-9]{3,4}$/)
-        .withMessage('CVV must be 3 or 4 digits.')
+        .matches(/^[0-9]{3}$/)
+        .withMessage('CVV must be 3 digits.')
         .bail()
         .customSanitizer(value => value.trim()),
 
