@@ -3,8 +3,10 @@ import { createHash } from 'crypto';
 import { matchedData, validationResult } from 'express-validator';
 import { supabase } from '../supabase/supabaseClient';
 import { createMerchantValidators } from '../utils/validators/merchantValidators';
-import { CreateMerchantType } from '../types/gen';
+import { CreateMerchantType, MerchantBalanceType } from '../types/gen';
 import { generateAccountNumber, generateMerchantKey } from '../utils/utils';
+import { PostgrestError } from '@supabase/supabase-js';
+import { authenticateMerchant, MerchantAuthRequest } from '../middleware/authenticateMerchant';
 const router = express.Router();
 
 
@@ -233,4 +235,42 @@ router.get('/merchants/:id', async (req: Request, res: Response) => {
 
 
 
+//fetch merchant balance
+router.get('/merchants/:id/balance', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { data, error }: { data: MerchantBalanceType[] | null, error: PostgrestError | null } = await supabase.from('merchant_balance').select('*').eq('merchant_id', id);
+    if (error) {
+        return res.status(500).json({
+            data: null,
+            error: error.message || 'Failed to retrieve merchant balances. Kindly try again.'
+        });
+    }
+    return res.status(200).json({
+        data,
+        error: null
+    });
+});
+
+
+//endpoint for merchant to get their balance
+router.get('/me/balance', authenticateMerchant, async (req: MerchantAuthRequest, res: Response) => {
+    const merchantId = req.merchantKeyRecord?.merchant_id;
+    if (!merchantId) {
+        return res.status(401).json({
+            data: null,
+            error: 'Unauthorized. Kindly login and try again.'
+        });
+    }
+    const { data, error }: { data: MerchantBalanceType[] | null, error: PostgrestError | null } = await supabase.from('merchant_balance').select('*').eq('merchant_id', merchantId);
+    if (error) {
+        return res.status(500).json({
+            data: null,
+            error: error.message || 'Failed to retrieve merchant balances. Kindly try again.'
+        });
+    }
+    return res.status(200).json({
+        data,
+        error: null
+    });
+});
 module.exports = router;
