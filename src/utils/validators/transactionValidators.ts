@@ -126,7 +126,7 @@ export const createTransactionValidators = [
         .bail()
         .customSanitizer(value => value.trim()),
 
-    // Virtual account specific validations
+    
     body('customer_account_name')
         .if(body('tx_type').equals('virtual_account'))
         .exists({ checkFalsy: true })

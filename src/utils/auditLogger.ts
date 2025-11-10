@@ -31,10 +31,6 @@ export const logAuditEvent = async (entry: AuditLogEntryType): Promise<void> => 
         trace_id: entry.trace_id ?? null
     };
 
-    const { error }: {error: PostgrestError | null} = await supabase.from('audit_log').insert(payload);
-
-    if (error) {
-        console.error('Failed to write audit log entry', { error, payload });
-    }
+    await supabase.from('audit_log').insert(payload);
 };
 

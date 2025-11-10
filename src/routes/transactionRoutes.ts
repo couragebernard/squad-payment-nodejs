@@ -65,7 +65,7 @@ router.get(
     if (error) {
       return res.status(500).json({
         data: null,
-        error: error.message || "Failed to fetch transactions",
+        error:  "Failed to fetch transactions",
         count: null,
       });
     }
@@ -127,7 +127,7 @@ router.get(
     if (error) {
       return res.status(500).json({
         data: null,
-        error: error.message || "Failed to fetch transactions",
+        error:  "Failed to fetch transactions",
         count: null,
       });
     }
@@ -158,7 +158,7 @@ router.get("/transactions/:id", async (req: Request, res: Response) => {
     }
     return res.status(500).json({
       data: null,
-      error: error.message || "Failed to fetch transaction",
+      error:"Failed to fetch transaction",
     });
   }
   return res.status(200).json({
@@ -188,7 +188,6 @@ router.post(
       includeOptionals: true,
     }) as { amount: number; currency: string };
 
-    console.log(payload)
     if (Number(payload.amount) <= 0) {
       return res.status(400).json({
         data: null,
@@ -205,7 +204,7 @@ router.post(
     if (virtualAccError) {
       return res.status(500).json({
         data: null,
-        error: virtualAccError.message || "Failed to fetch virtual account",
+        error:  "Failed to fetch virtual account",
       });
     }
     const transactionReference = generateUniqueTransactionReference();
@@ -219,7 +218,7 @@ router.post(
     if (paymentMethodsError) {
       return res.status(500).json({
         data: null,
-        error: paymentMethodsError.message || "Failed to fetch payment methods",
+        error:  "Failed to fetch payment methods",
       });
     }
     if (paymentMethods.length === 0) {
@@ -244,7 +243,7 @@ router.post(
     if (transactionError) {
       return res.status(500).json({
         data: null,
-        error: transactionError.message || "Failed to create transaction",
+        error: "Failed to create transaction",
       });
     }
     return res.status(200).json({
@@ -539,7 +538,7 @@ router.post(
       return res.status(500).json({
         data: null,
         error:
-          balanceUpdateError.message || "Failed to update merchant balances.",
+           "Failed to update merchant balances.",
       });
     }
 

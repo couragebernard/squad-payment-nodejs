@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import { createHash } from 'crypto';
 import { matchedData, validationResult } from 'express-validator';
 import { supabase } from '../supabase/supabaseClient';
@@ -43,7 +43,7 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
     if (error) {
         return res.status(500).json({
             data: null,
-            error: error.message || 'Merchant registration failed. Kindly try again.'
+            error: 'Merchant registration failed. Kindly try again.'
         });
     }
 
@@ -61,13 +61,13 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
         if (deleteError) {
             return res.status(500).json({
                 data: null,
-                error: deleteError.message || 'Merchant deletion failed. Kindly contact support.'
+                error:  'Merchant deletion failed. Kindly contact support.'
             });
         }
 
         return res.status(500).json({
             data: null,
-            error: keysError.message || 'Merchant keys registration failed. Kindly try again.'
+            error:  'Merchant keys registration failed. Kindly try again.'
         });
     }
 
@@ -85,12 +85,12 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
         if (deleteError) {
             return res.status(500).json({
                 data: null,
-                error: deleteError.message || 'Merchant deletion failed. Kindly contact support.'
+                error:  'Merchant deletion failed. Kindly contact support.'
             });
         }
         return res.status(500).json({
             data: null,
-            error: virtualAccountError.message || 'Virtual account creation failed. Kindly try again.'
+            error: 'Virtual account creation failed. Kindly try again.'
         });
     }
 
@@ -107,7 +107,7 @@ router.post('/create-merchant', createMerchantValidators, async (req: Request, r
         if (merchantBalanceError) {
             return res.status(500).json({
                 data: null,
-                error: merchantBalanceError.message || 'Merchant balance creation failed. Kindly try again.'
+                error:  'Merchant balance creation failed. Kindly try again.'
             });
         }
     }
@@ -160,7 +160,7 @@ router.get('/merchants', async (req: Request, res: Response) => {
     if (error) {
         return res.status(500).json({
             data:null,
-            error: error.message || 'Failed to retrieve merchants. Kindly try again.',
+            error:  'Failed to retrieve merchants. Kindly try again.',
             count: null
         });
     }
@@ -187,7 +187,7 @@ router.get('/merchants/:id', async (req: Request, res: Response) => {
 
         return res.status(500).json({
             data: null,
-            error: error.message || 'Merchant not found'
+            error:  'Merchant not found'
         });
     }
     return res.status(200).json({
@@ -195,43 +195,6 @@ router.get('/merchants/:id', async (req: Request, res: Response) => {
         error: null
     });
 });
-
-//endpoint to get a merchants public key
-// router.get('/merchants/:id/keys', authenticateMerchant, async (req: MerchantAuthRequest, res: Response) => {
-//     const { id } = req.params;
-
-
-//     //check if the current logged in merchant id is the same as the id in the request params
-//     if (req.merchantKeyRecord?.merchant_id && String(req.merchantKeyRecord.merchant_id) !== id) {
-//         return res.status(403).json({
-//             data: null,
-//             error: 'You are not authorized to view keys for this merchant.'
-//         });
-//     }
-
-//     //fetch the merchant keys from the db
-//     const { data, error } = await supabase.from('merchant_keys').select('public_key').eq('merchant_id', id).single();
-//     if (error) {
-//         //throw an error if the merchat keys are not foud
-//         if (error.code === '22P02') {
-//             return res.status(404).json({
-//                 data: null,
-//                 error: 'Merchant keys not found. Kindly check the id and try again.'
-//             });
-//         }
-
-//         return res.status(500).json({
-//             data: null,
-//             error: error.message || 'Failed to retrieve merchant keys. Kindly try again.'
-//         });
-//     }
-//     return res.status(200).json({
-//         data: {
-//             public_key: data.public_key
-//         },
-//         error: null
-//     });
-// });
 
 
 
@@ -242,7 +205,30 @@ router.get('/merchants/:id/balance', async (req: Request, res: Response) => {
     if (error) {
         return res.status(500).json({
             data: null,
-            error: error.message || 'Failed to retrieve merchant balances. Kindly try again.'
+            error: 'Failed to retrieve merchant balances. Kindly try again.'
+        });
+    }
+    return res.status(200).json({
+        data,
+        error: null
+    });
+});
+
+//endpoint for a merchant to get their balance
+router.get('/balance', authenticateMerchant, async (req: MerchantAuthRequest, res: Response, next: NextFunction) => {
+    const merchantId = req.merchantKeyRecord?.merchant_id;
+    if (!merchantId) {
+        return res.status(401).json({
+            data: null,
+            error: 'Unauthorized. Kindly login and try again.'
+        });
+    }
+    next();
+    const { data, error }: { data: MerchantBalanceType[] | null, error: PostgrestError | null } = await supabase.from('merchant_balance').select('*').eq('merchant_id', merchantId);
+    if (error) {
+        return res.status(500).json({
+            data: null,
+            error:  'Failed to retrieve merchant balances. Kindly try again.'
         });
     }
     return res.status(200).json({
@@ -265,7 +251,7 @@ router.get('/balance', authenticateMerchant, async (req: MerchantAuthRequest, re
     if (error) {
         return res.status(500).json({
             data: null,
-            error: error.message || 'Failed to retrieve merchant balances. Kindly try again.'
+            error: 'Failed to retrieve merchant balances. Kindly try again.'
         });
     }
     return res.status(200).json({
@@ -273,4 +259,6 @@ router.get('/balance', authenticateMerchant, async (req: MerchantAuthRequest, re
         error: null
     });
 });
+
+
 module.exports = router;

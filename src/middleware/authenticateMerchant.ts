@@ -19,11 +19,6 @@ const extractSecretKey = (req: Request): string | null => {
         }
     }
 
-    // const headerSecret = req.header('x-squad-secret-key');
-    // if (headerSecret && headerSecret.trim().length) {
-    //     return headerSecret.trim();
-    // }
-
     return null;
 };
 
@@ -53,7 +48,6 @@ export const authenticateMerchant = async (req: MerchantAuthRequest, res: Respon
 
     const hashedIncomingSecret = createHash('sha256').update(secretKey).digest('hex');
     if (hashedIncomingSecret !== keyRecord.secret_key) {
-        console.error('Invalid merchant credentials.', hashedIncomingSecret, keyRecord.secret_key);
         return res.status(401).json({
             data: null,
             error: 'Invalid merchant credentials.'

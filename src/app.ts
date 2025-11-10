@@ -42,7 +42,7 @@ app.use(function (_req: Request, res: Response) {
 });
 
 app.use(function(err: Error, _req: Request, res: Response, _next: NextFunction){
-    console.error(err);
+  
     res.status(500).json({
         data: null,
         error: 'Internal server error',
