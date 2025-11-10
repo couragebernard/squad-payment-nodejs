@@ -27,7 +27,7 @@ export type CreateTransactionType = {
 }
 
 
-export type merchantKeyType = {
+export type MerchantKeyType = {
  
       active: boolean
       created_at: string
@@ -40,7 +40,7 @@ export type merchantKeyType = {
 
 
 
-  export type merchantType = {
+  export type MerchantType = {
     address: string
     available_balance: number
     created_at: string
@@ -57,7 +57,7 @@ export type merchantKeyType = {
 
 
 
-  export type paymentMethodType = {
+  export type PaymentMethodType = {
     created_at: string
     fee_rate: number
     fee_type: string
@@ -68,7 +68,7 @@ export type merchantKeyType = {
   }
 
 
-  export type transactionType = {
+  export type TransactionType = {
     amount: number
     card_expiration_date: string | null
       card_holder_name: string | null
@@ -89,10 +89,11 @@ export type merchantKeyType = {
       tx_ref: string | null
       tx_type: "card" | "virtual_account"
       virtual_account_id: string | null
+      status: "pending" | "success" | "failed"
     }
     
 
-  export type virtualAccountType = {
+  export type VirtualAccountType = {
     account_name: string
     account_number: string
     bank_code: string
@@ -102,3 +103,7 @@ export type merchantKeyType = {
     merchant_id: string
   }
    
+  export type MerchantBalanceType = {
+    available_balance: number
+    pending_settlement_balance: number
+  }

@@ -2,9 +2,10 @@ import express, { Request, Response } from 'express';
 import { matchedData, validationResult } from 'express-validator';
 import { authenticateMerchant, MerchantAuthRequest } from '../middleware/authenticateMerchant';
 import { supabase } from '../supabase/supabaseClient';
-import { CreateTransactionType } from '../types/gen';
+import { CreateTransactionType, MerchantBalanceType, TransactionType } from '../types/gen';
 import {  generateUniqueTransactionReference } from '../utils/utils';
 import { createTransactionValidators } from '../utils/validators/transactionValidators';
+import { PostgrestError } from '@supabase/supabase-js';
 const router = express.Router();
 
 const roundToTwo = (value: number) => Math.round(value * 100) / 100;
@@ -391,7 +392,101 @@ router.post(
 
 
 
-//callback to update the merchant and transaction details once a card settlement has occured
+//webhook to update the merchant and transaction details once a card settlement has occured
+router.patch('/card-settlement', authenticateMerchant, async (req: MerchantAuthRequest, res: Response) => {
+    const { amount, id, currency } = req.query;
+    if (!amount || !id || !currency) {
+        return res.status(400).json({
+            data: null,
+            error: 'Missing required fields.'
+        });
+    }
+    const { data: transactionData, error: transactionDataError }: { data: TransactionType | null, error: PostgrestError | null } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('id', id)
+        .single();
+    if (transactionDataError || !transactionData) {
+        return res.status(500).json({
+            data: null,
+            error: 'Transaction not found.'
+        });
+    }
+    if (transactionData.status === 'success') {
+        return res.status(400).json({
+            data: null,
+            error: 'Transaction already settled.'
+        });
+    }
+    if (transactionData.amount !== Number(amount)) {
+        return res.status(400).json({
+            data: null,
+            error: 'Transaction amount does not match.'
+        });
+    }
+    if (transactionData.currency !== currency) {
+        return res.status(400).json({
+            data: null,
+            error: 'Transaction currency does not match.'
+        });
+    }
+    if (transactionData.tx_type !== 'card') {
+        return res.status(400).json({
+            data: null,
+            error: 'Transaction is not a card transaction.'
+        });
+    }
+    const { data: merchantBalances, error: merchantBalanceError }: { data: MerchantBalanceType | null, error: PostgrestError | null } = await supabase
+        .from('merchants')
+        .select('available_balance, pending_settlement_balance')
+        .eq('id', transactionData.merchant_id)
+        .single();
+    if (merchantBalanceError || !merchantBalances) {
+        return res.status(500).json({
+            data: null,
+            error: 'Failed to fetch merchant balances.'
+        });
+    }
+
+       
+        const { error: balanceUpdateError } = await supabase
+            .from('merchants')
+            .update({
+                available_balance: roundToTwo((merchantBalances.available_balance ?? 0) + transactionData.total_amount),
+                pending_settlement_balance: roundToTwo((merchantBalances.pending_settlement_balance ?? 0) - transactionData.total_amount)
+            })
+            .eq('id', transactionData.merchant_id);
+        if (balanceUpdateError) {
+            return res.status(500).json({
+                data: null,
+                error: 'Failed to update merchant balances.'
+            });
+        }
+
+
+        const { error: transactionUpdateError } = await supabase
+            .from('transactions')
+            .update({
+                status: 'success'
+            })
+            .eq('id', transactionData.id);
+        if (transactionUpdateError) {
+            return res.status(500).json({
+                data: null,
+                error:  'Failed to update transaction status.'
+            });
+        }
+
+        return res.status(200).json({
+            data: {
+                message: 'Card settlement was successful!',
+                transaction: transactionData
+            },
+            error: null
+        });
+    }
+);
+
 
 
 module.exports = router;
