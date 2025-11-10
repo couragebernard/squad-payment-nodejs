@@ -3,6 +3,7 @@ import { matchedData, validationResult } from 'express-validator';
 import { authenticateMerchant, MerchantAuthRequest } from '../middleware/authenticateMerchant';
 import { supabase } from '../supabase/supabaseClient';
 import { CreateTransactionType, MerchantBalanceType, TransactionType } from '../types/gen';
+import { logAuditEvent } from '../utils/auditLogger';
 import {  generateUniqueTransactionReference } from '../utils/utils';
 import { createTransactionValidators } from '../utils/validators/transactionValidators';
 import { PostgrestError } from '@supabase/supabase-js';
@@ -96,6 +97,7 @@ router.get("/initialize-payment-url", authenticateMerchant, async (req: Merchant
     const merchantId = req.merchantKeyRecord?.merchant_id;
     const { data:virtualAccData, error:virtualAccError } = await supabase.from('virtual_accounts').select('*').eq('merchant_id', merchantId).single();
     if (virtualAccError) {
+      
         return res.status(500).json({
             data: null,
             error: virtualAccError.message || 'Failed to fetch virtual account'
@@ -110,6 +112,7 @@ router.get("/initialize-payment-url", authenticateMerchant, async (req: Merchant
             .eq('available', true)
             .contains('allowed_currencies', [currency]);
     if (paymentMethodsError) {
+       
         return res.status(500).json({
             data: null,
             error: paymentMethodsError.message || 'Failed to fetch payment methods'
@@ -130,7 +133,7 @@ router.get("/initialize-payment-url", authenticateMerchant, async (req: Merchant
         tx_ref: transactionReference,
     }).select().single();
     if (transactionError) {
-        console.error(transactionError);
+        
         return res.status(500).json({
             data: null,
             error: transactionError.message || 'Failed to create transaction'
@@ -319,6 +322,19 @@ router.post(
             .single();
 
         if (transactionError) {
+            await logAuditEvent({
+                event_type: 'TRANSACTION_UPDATE_FAILED',
+                db_table: 'transactions',
+                table_id: id as string,
+                status: 'failure',
+                attempted_changes: baseTransactionRecord,
+                error_message: transactionError.message,
+                context: {
+                    route: 'POST /pay'
+                },
+                user_type: 'merchant',
+                user_id: merchantId
+            });
             return res.status(500).json({
                 data: null,
                 error: transactionError?.message || 'Failed to update transaction.'
@@ -333,6 +349,23 @@ router.post(
 
         if (merchantBalanceError || !merchantBalances) {
             await supabase.from('transactions').delete().eq('id', transaction.id);
+            await logAuditEvent({
+                event_type: 'MERCHANT_BALANCE_FETCH_FAILED',
+                db_table: 'merchants',
+                table_id: merchantId,
+                status: 'failure',
+                attempted_changes: {
+                    available_balance_delta: txType === 'virtual_account' ? netAmount : 0,
+                    pending_settlement_delta: txType === 'card' ? netAmount : 0
+                },
+                error_message: merchantBalanceError?.message ?? 'Merchant balances not found.',
+                context: {
+                    route: 'POST /pay',
+                    transaction_id: transaction.id
+                },
+                user_type: 'merchant',
+                user_id: merchantId
+            });
             return res.status(500).json({
                 data: null,
                 error: merchantBalanceError?.message || 'Failed to fetch merchant balances.'
@@ -355,6 +388,20 @@ router.post(
 
         if (balanceUpdateError) {
             await supabase.from('transactions').delete().eq('id', id);
+            await logAuditEvent({
+                event_type: 'MERCHANT_BALANCE_UPDATE_FAILED',
+                db_table: 'merchants',
+                table_id: merchantId,
+                status: 'failure',
+                attempted_changes: updatedBalances,
+                error_message: balanceUpdateError.message,
+                context: {
+                    route: 'POST /pay',
+                    transaction_id: transaction.id
+                },
+                user_type: 'merchant',
+                user_id: merchantId
+            });
             return res.status(500).json({
                 data: null,
                 error: balanceUpdateError.message || 'Failed to update merchant balances.'
@@ -407,6 +454,7 @@ router.patch('/card-settlement', authenticateMerchant, async (req: MerchantAuthR
         .eq('id', id)
         .single();
     if (transactionDataError || !transactionData) {
+     
         return res.status(500).json({
             data: null,
             error: 'Transaction not found.'
@@ -442,6 +490,7 @@ router.patch('/card-settlement', authenticateMerchant, async (req: MerchantAuthR
         .eq('id', transactionData.merchant_id)
         .single();
     if (merchantBalanceError || !merchantBalances) {
+       
         return res.status(500).json({
             data: null,
             error: 'Failed to fetch merchant balances.'
@@ -454,9 +503,26 @@ router.patch('/card-settlement', authenticateMerchant, async (req: MerchantAuthR
             .update({
                 available_balance: roundToTwo((merchantBalances.available_balance ?? 0) + transactionData.total_amount),
                 pending_settlement_balance: roundToTwo((merchantBalances.pending_settlement_balance ?? 0) - transactionData.total_amount)
+            
             })
             .eq('id', transactionData.merchant_id);
         if (balanceUpdateError) {
+            await logAuditEvent({
+                event_type: 'MERCHANT_BALANCE_UPDATE_FAILED',
+                db_table: 'merchants',
+                table_id: transactionData.merchant_id,
+                status: 'failure',
+                attempted_changes: {
+                    available_balance: roundToTwo((merchantBalances.available_balance ?? 0) + transactionData.total_amount),
+                    pending_settlement_balance: roundToTwo((merchantBalances.pending_settlement_balance ?? 0) - transactionData.total_amount)
+                },
+                error_message: balanceUpdateError.message,
+                context: {
+                    route: 'PATCH /card-settlement',
+                    transaction_id: transactionData.id
+                },
+                user_type: 'system'
+            });
             return res.status(500).json({
                 data: null,
                 error: 'Failed to update merchant balances.'
@@ -467,10 +533,26 @@ router.patch('/card-settlement', authenticateMerchant, async (req: MerchantAuthR
         const { error: transactionUpdateError } = await supabase
             .from('transactions')
             .update({
-                status: 'success'
+                status: 'success',
+                settled_at: new Date()
             })
             .eq('id', transactionData.id);
         if (transactionUpdateError) {
+            await logAuditEvent({
+                event_type: 'TRANSACTION_STATUS_UPDATE_FAILED',
+                db_table: 'transactions',
+                table_id: transactionData.id,
+                status: 'failure',
+                attempted_changes: {
+                    status: 'success',
+                    settled_at: new Date()
+                },
+                error_message: transactionUpdateError.message,
+                context: {
+                    route: 'PATCH /card-settlement'
+                },
+                user_type: 'system'
+            });
             return res.status(500).json({
                 data: null,
                 error:  'Failed to update transaction status.'
